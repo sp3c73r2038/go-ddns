@@ -1,0 +1,7 @@
+---
+domains:
+- zone: hachune.pl
+  nameserver: ns.hachune.pl
+  hostnames:
+  - git
+  - non
