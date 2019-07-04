@@ -7,9 +7,9 @@ import (
 	"log"
 	"net"
 	"strings"
-	"time"
+	// "time"
 
-	"github.com/miekg/dns"
+	// "github.com/miekg/dns"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,6 +17,8 @@ func main() {
 
 	var configFile = flag.String(
 		"config", "domains.yaml", "input domain config")
+	var keyFile = flag.String(
+		"tisg", "tisg.yaml", "tisg key config")
 	var ifaceName = flag.String(
 		"iface", "ppp0", "interface which ipaddr is from")
 
@@ -34,8 +36,8 @@ func main() {
 	}
 
 	// FIXME: multiple ip ?
-	ipv4 := make([]string, 1)
-	ipv6 := make([]string, 1)
+	ipv4 := make([]string, 0)
+	ipv6 := make([]string, 0)
 
 	for _, addr := range addrs {
 		var ip net.IP
@@ -73,6 +75,21 @@ func main() {
 
 	log.Printf(">> config: %s", config)
 
+	log.Printf(">> read key from %s", *keyFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	content, err = ioutil.ReadFile(*keyFile)
+
+	key := new(TisgConfig)
+	log.Printf(">> loading key from %s", *keyFile)
+	err = yaml.Unmarshal(content, &key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf(">> key: %s", key)
+
 	for _, domain := range config.Domains {
 		if len(domain.Nameserver) <= 0 {
 			log.Printf(
@@ -82,37 +99,25 @@ func main() {
 		}
 
 		for _, hostname := range domain.Hostnames {
-			c := new(dns.Client)
-			c.Dialer = &net.Dialer{
-				Timeout: time.Second * 1,
-				// Timeout: time.Millisecond * 1,
-			}
-
-			// TODO
 			nameserver := fmt.Sprintf("%s:53", domain.Nameserver)
-			fqdn := fmt.Sprintf("%s.%s", hostname, domain.Zone)
+			// resolves, err := Query(fqdn, nameserver, 1000)
 
-			ml := new(dns.Msg)
-			ml.Id = dns.Id()
-			ml.Question = make([]dns.Question, 1)
-			ml.Question[0] = dns.Question{
-				dns.Fqdn(fqdn), dns.TypeA, dns.ClassINET}
-
-			in, _, err := c.Exchange(ml, nameserver)
-
-			if err != nil {
-				log.Fatal(err)
+			tisg := make(map[string]string)
+			for _, t := range key.Keys {
+				tisg[t.FQDN] = t.Key
 			}
 
-			if len(in.Answer) > 0 {
-				if t, ok := in.Answer[0].(*dns.A); ok {
-					// do something with t.Txt
-					log.Printf(
-						">>> resolved %s: %s",
-						fqdn, t.A)
+			for _, ip := range ipv4 {
+				// log.Println(ip)
+				ok, err := Update(
+					hostname, domain.Zone, ip, uint32(60), nameserver, 3000, tisg)
+				if err != nil {
+					log.Fatal(err)
 				}
-			} else {
-				log.Printf("!!! not found: %s", fqdn)
+				if ok {
+					fqdn := fmt.Sprintf("%s.%s", hostname, domain.Zone)
+					log.Printf("%s updated to %s", fqdn, ip)
+				}
 			}
 
 		}
