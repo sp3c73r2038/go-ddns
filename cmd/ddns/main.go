@@ -10,6 +10,7 @@ import (
 	// "time"
 
 	// "github.com/miekg/dns"
+	"github.com/aleiphoenix/go-ddns/pkg/ddns"
 	"gopkg.in/yaml.v3"
 )
 
@@ -64,7 +65,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	config := new(Config)
+	config := new(ddns.Config)
 
 	log.Printf(">> loading config from %s", *configFile)
 
@@ -82,7 +83,7 @@ func main() {
 
 	content, err = ioutil.ReadFile(*keyFile)
 
-	key := new(TisgConfig)
+	key := new(ddns.TisgConfig)
 	log.Printf(">> loading key from %s", *keyFile)
 	err = yaml.Unmarshal(content, &key)
 	if err != nil {
@@ -109,7 +110,7 @@ func main() {
 
 			for _, ip := range ipv4 {
 				// log.Println(ip)
-				ok, err := Update(
+				ok, err := ddns.Update(
 					hostname, domain.Zone, ip, uint32(60), nameserver, 3000, tisg)
 				if err != nil {
 					log.Fatal(err)

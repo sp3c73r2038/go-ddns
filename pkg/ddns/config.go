@@ -1,4 +1,4 @@
-package main
+package ddns
 
 type Config struct {
 	Domains []ZoneConfig `yaml:"domains"`
