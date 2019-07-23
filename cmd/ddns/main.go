@@ -7,12 +7,14 @@ import (
 	"log"
 	"net"
 	"strings"
-	// "time"
+	"sync/atomic"
+	"time"
 
-	// "github.com/miekg/dns"
 	"github.com/aleiphoenix/go-ddns/pkg/ddns"
 	"gopkg.in/yaml.v3"
 )
+
+var lock uint32
 
 func main() {
 
@@ -24,6 +26,25 @@ func main() {
 		"iface", "ppp0", "interface which ipaddr is from")
 
 	flag.Parse()
+
+	for {
+		update(configFile, keyFile, ifaceName)
+		time.Sleep(time.Second * 60)
+	}
+}
+
+
+
+func update(configFile *string, keyFile *string, ifaceName *string) {
+
+	// CAS to 1
+	if !atomic.CompareAndSwapUint32(&lock, 0, 1) {
+		log.Println("!! another routine is updating, skip...")
+	}
+
+	defer func () {
+		atomic.StoreUint32(&lock, 0)
+	}()
 
 	log.Printf(">> reading ipaddr from iface %s", *ifaceName)
 
