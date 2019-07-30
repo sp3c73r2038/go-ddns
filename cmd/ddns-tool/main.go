@@ -34,21 +34,23 @@ func askFor(name string, v interface{}) {
 
 func main() {
 
+	var action = flag.String("action", "update", "update|delete")
 	var domain = flag.String("domain", "", "whole domain")
 	var hostname = flag.String("hostname", "", "hostname")
 	var zone = flag.String("zone", "", "zone")
 	var recordType = flag.String("type", "A", "DNS record type")
 	var payload = flag.String("payload", "", "payload")
-	var ttl = flag.Int("ttl", 300, "ttl in seconds")
+	var ttl = flag.Int("ttl", 60, "ttl in seconds")
 	var nameserver = flag.String("nameserver", "", "nameserver")
 	var keyFile = flag.String(
 		"tisg", "tisg.yaml", "tisg key config")
+	var timeout = flag.Int("timeout", 10, "timeout in seconds")
 
 	flag.Parse()
 
 	if len(*domain) > 0 {
 		re, _ := regexp.Compile(
-			`([-a-z0-9\.]+)\.([-a-z0-9]+\.[-a-z0-9]+)`)
+			`([a-z0-9\._-]+)\.([-a-z0-9]+\.[-a-z0-9]+)`)
 		groups := re.FindAllStringSubmatch(*domain, -1)
 		if groups == nil {
 			panic(fmt.Sprintf("invalid domain: %s", *domain))
@@ -90,21 +92,38 @@ func main() {
 		tisg[t.FQDN] = t.Key
 	}
 
+	_timeout := time.Second * time.Duration(*timeout)
+
+	if *action == "update" {
+		DoUpdate(
+			*recordType, *hostname, *zone, *payload,
+			*ttl, *nameserver, tisg, _timeout)
+	} else if *action == "delete" {
+		DoDelete(
+			*recordType, *hostname, *zone, *nameserver,
+			tisg, _timeout)
+	}
+}
+
+func DoUpdate(
+	recordType, hostname, zone, payload string,
+	ttl int, nameserver string, tisg map[string]string,
+	timeout time.Duration) {
+	var err error
 	var ok bool
-	timeout := time.Second * 10
-	switch strings.ToLower(*recordType) {
+	switch strings.ToLower(recordType) {
 	case "a":
 		ok, err = ddns.Update(
-			*hostname, *zone, *payload,
-			uint32(*ttl), *nameserver, timeout, tisg)
+			hostname, zone, payload,
+			uint32(ttl), nameserver, timeout, tisg)
 		if err != nil {
 			log.Fatal(err)
 		}
 	case "txt":
-		txt := []string{*payload}
+		txt := []string{payload}
 		ok, err = ddns.UpdateTXT(
-			*hostname, *zone, txt,
-			uint32(*ttl), *nameserver, timeout, tisg)
+			hostname, zone, txt,
+			uint32(ttl), nameserver, timeout, tisg)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -114,8 +133,34 @@ func main() {
 	}
 
 	if ok {
-		fqdn := fmt.Sprintf("%s.%s", *hostname, *zone)
-		log.Printf("%s updated to %s", fqdn, *payload)
+		fqdn := fmt.Sprintf("%s.%s", hostname, zone)
+		log.Printf("%s updated to %s", fqdn, payload)
+	}
+
+}
+
+func DoDelete(
+	recordType, hostname, zone, nameserver string,
+	tisg map[string]string, timeout time.Duration) {
+	var err error
+	var ok bool
+	switch strings.ToLower(recordType) {
+	case "a":
+		panic("not implemented")
+	case "txt":
+		ok, err = ddns.DeleteTXT(
+			hostname, zone, nameserver, timeout, tisg)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+	default:
+		log.Fatalf("unknown type: %s", recordType)
+	}
+
+	if ok {
+		fqdn := fmt.Sprintf("%s.%s", hostname, zone)
+		log.Printf("%s delete", fqdn)
 	}
 
 }

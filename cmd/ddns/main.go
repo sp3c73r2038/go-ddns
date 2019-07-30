@@ -24,28 +24,30 @@ func main() {
 		"tisg", "tisg.yaml", "tisg key config")
 	var ifaceName = flag.String(
 		"iface", "ppp0", "interface which ipaddr is from")
+	var timeout = flag.Int("timeout", 10, "timeout in seconds")
 
 	flag.Parse()
 
 	for {
-		update(configFile, keyFile, ifaceName)
+		update(configFile, keyFile, ifaceName, timeout)
 		time.Sleep(time.Second * 60)
 	}
 }
 
-
-
-func update(configFile *string, keyFile *string, ifaceName *string) {
+func update(
+	configFile *string, keyFile *string, ifaceName *string, timeout *int) {
 
 	// CAS to 1
 	if !atomic.CompareAndSwapUint32(&lock, 0, 1) {
 		log.Println("!! another routine is updating, skip...")
 	}
 
-	defer func () {
+	defer func() {
 		atomic.StoreUint32(&lock, 0)
 	}()
 
+	_timeout := time.Second * time.Duration(*timeout)
+	log.Printf("")
 	log.Printf(">> reading ipaddr from iface %s", *ifaceName)
 
 	iface, err := net.InterfaceByName(*ifaceName)
@@ -132,12 +134,14 @@ func update(configFile *string, keyFile *string, ifaceName *string) {
 			for _, ip := range ipv4 {
 				// log.Println(ip)
 				ok, err := ddns.Update(
-					hostname, domain.Zone, ip, uint32(60), nameserver, 3000, tisg)
+					hostname, domain.Zone, ip,
+					uint32(60), nameserver, _timeout, tisg)
 				if err != nil {
 					log.Fatal(err)
 				}
 				if ok {
-					fqdn := fmt.Sprintf("%s.%s", hostname, domain.Zone)
+					fqdn := fmt.Sprintf(
+						"%s.%s", hostname, domain.Zone)
 					log.Printf("%s updated to %s", fqdn, ip)
 				}
 			}

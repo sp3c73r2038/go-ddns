@@ -172,3 +172,55 @@ func UpdateTXT(
 	rv = true
 	return
 }
+
+func DeleteTXT(
+	hostname string, zone string,
+	server string, timeout time.Duration,
+	tsig map[string]string) (rv bool, err error) {
+
+	rv = false
+
+	fqdn := dns.Fqdn(fmt.Sprintf("%s.%s", hostname, zone))
+
+	// DELETE TXT RRset first
+	oldRRs := make([]dns.RR, 1)
+	oldRR := new(dns.TXT)
+	oldRR.Hdr = dns.RR_Header{
+		Name:   fqdn,
+		Rrtype: dns.TypeTXT,
+		Class:  dns.ClassANY,
+	}
+	oldRRs[0] = oldRR
+
+	m := new(dns.Msg)
+	m.Id = dns.Id()
+
+	m.SetUpdate(dns.Fqdn(zone))
+	m.RemoveName(oldRRs)
+
+	c := new(dns.Client)
+	c.Dialer = &net.Dialer{
+		Timeout: timeout,
+	}
+
+	if tsig != nil && len(tsig) > 0 {
+		c.TsigSecret = tsig
+		for k, _ := range tsig {
+			m.SetTsig(k, dns.HmacMD5, 300, time.Now().Unix())
+		}
+	}
+
+	// log.Println(m)
+
+	in, _, err := c.Exchange(m, server)
+	if err != nil {
+		return
+	}
+
+	if in.Rcode != dns.RcodeSuccess {
+		err = fmt.Errorf("Rcode: %d", in.Rcode)
+		return
+	}
+	rv = true
+	return
+}
