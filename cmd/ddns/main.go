@@ -4,15 +4,18 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/aleiphoenix/go-ddns/pkg/ddns"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
+
+var RLogger, _ = zap.NewDevelopment()
+var logger = RLogger.Sugar()
 
 var lock uint32
 
@@ -39,7 +42,7 @@ func update(
 
 	// CAS to 1
 	if !atomic.CompareAndSwapUint32(&lock, 0, 1) {
-		log.Println("!! another routine is updating, skip...")
+		logger.Info("!! another routine is updating, skip...")
 	}
 
 	defer func() {
@@ -47,16 +50,16 @@ func update(
 	}()
 
 	_timeout := time.Second * time.Duration(*timeout)
-	log.Printf("")
-	log.Printf(">> reading ipaddr from iface %s", *ifaceName)
+	logger.Infof("")
+	logger.Infof(">> reading ipaddr from iface %s", *ifaceName)
 
 	iface, err := net.InterfaceByName(*ifaceName)
 	if err != nil {
-		log.Fatal(err)
+		logger.Info(err)
 	}
 	addrs, err := iface.Addrs()
 	if err != nil {
-		log.Fatal(err)
+		logger.Info(err)
 	}
 
 	// FIXME: multiple ip ?
@@ -78,45 +81,45 @@ func update(
 		}
 	}
 
-	log.Printf(">> ipv4 ipaddr: %s", ipv4)
-	log.Printf(">> ipv6 ipaddr: %s", ipv6)
+	logger.Infof(">> ipv4 ipaddr: %s", ipv4)
+	logger.Infof(">> ipv6 ipaddr: %s", ipv6)
 
-	log.Printf(">> reading config from %s", *configFile)
+	logger.Infof(">> reading config from %s", *configFile)
 
 	content, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		log.Fatal(err)
+		logger.Info(err)
 	}
 
 	config := new(ddns.Config)
 
-	log.Printf(">> loading config from %s", *configFile)
+	logger.Infof(">> loading config from %s", *configFile)
 
 	err = yaml.Unmarshal(content, &config)
 	if err != nil {
-		log.Fatal(err)
+		logger.Info(err)
 	}
 
-	log.Printf(">> config: %s", config)
+	logger.Infof(">> config: %s", config)
 
-	log.Printf(">> read key from %s", *keyFile)
+	logger.Infof(">> read key from %s", *keyFile)
 	if err != nil {
-		log.Fatal(err)
+		logger.Info(err)
 	}
 
 	content, err = ioutil.ReadFile(*keyFile)
 
 	key := new(ddns.TisgConfig)
-	log.Printf(">> loading key from %s", *keyFile)
+	logger.Infof(">> loading key from %s", *keyFile)
 	err = yaml.Unmarshal(content, &key)
 	if err != nil {
-		log.Fatal(err)
+		logger.Info(err)
 	}
-	log.Printf(">> key: %s", key)
+	logger.Infof(">> key: %s", key)
 
 	for _, domain := range config.Domains {
 		if len(domain.Nameserver) <= 0 {
-			log.Printf(
+			logger.Infof(
 				"!!! no nameserver configured for zone %s",
 				domain.Zone)
 			continue
@@ -132,17 +135,17 @@ func update(
 			}
 
 			for _, ip := range ipv4 {
-				// log.Println(ip)
+				// logger.Info(ip)
 				ok, err := ddns.Update(
 					hostname, domain.Zone, ip,
 					uint32(60), nameserver, _timeout, tisg)
 				if err != nil {
-					log.Fatal(err)
+					logger.Error(err)
 				}
 				if ok {
 					fqdn := fmt.Sprintf(
 						"%s.%s", hostname, domain.Zone)
-					log.Printf("%s updated to %s", fqdn, ip)
+					logger.Infof("%s updated to %s", fqdn, ip)
 				}
 			}
 

@@ -6,7 +6,11 @@ import (
 	"time"
 
 	"github.com/miekg/dns"
+	"go.uber.org/zap"
 )
+
+var RLogger, _ = zap.NewDevelopment()
+var logger = RLogger.Sugar()
 
 func Query(domain string, server string, timeout int) (rv []string, err error) {
 	rv = make([]string, 0)
@@ -214,10 +218,12 @@ func DeleteTXT(
 
 	in, _, err := c.Exchange(m, server)
 	if err != nil {
+		logger.Error("Exchange")
 		return
 	}
 
 	if in.Rcode != dns.RcodeSuccess {
+		logger.Error("Rcode: %d", in.Rcode)
 		err = fmt.Errorf("Rcode: %d", in.Rcode)
 		return
 	}
