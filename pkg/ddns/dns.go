@@ -94,7 +94,7 @@ func Update(
 	if tsig != nil && len(tsig) > 0 {
 		c.TsigSecret = tsig
 		for k, _ := range tsig {
-			m.SetTsig(k, dns.HmacMD5, 300, time.Now().Unix())
+			m.SetTsig(k, dns.HmacSHA512, 300, time.Now().Unix())
 		}
 	}
 
@@ -158,7 +158,7 @@ func UpdateTXT(
 	if tsig != nil && len(tsig) > 0 {
 		c.TsigSecret = tsig
 		for k, _ := range tsig {
-			m.SetTsig(k, dns.HmacMD5, 300, time.Now().Unix())
+			m.SetTsig(k, dns.HmacSHA512, 300, time.Now().Unix())
 		}
 	}
 
@@ -210,7 +210,7 @@ func DeleteTXT(
 	if tsig != nil && len(tsig) > 0 {
 		c.TsigSecret = tsig
 		for k, _ := range tsig {
-			m.SetTsig(k, dns.HmacMD5, 300, time.Now().Unix())
+			m.SetTsig(k, dns.HmacSHA512, 300, time.Now().Unix())
 		}
 	}
 
